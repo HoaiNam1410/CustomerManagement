@@ -1,0 +1,397 @@
+﻿@page "/"
+@page "/customers"
+@attribute [Authorize(Roles = "Admin")]
+@using CustomerManagement.Client.Services
+@using CustomerManagement.Client.Components
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject CustomerApiService CustomerApi
+@inject ILogger<Customers> Logger
+
+<PageTitle>Quản lý khách hàng</PageTitle>
+
+<div class="customers-page-heading">
+    <div>
+        <h1 class="page-title">Danh sách khách hàng</h1>
+
+        <p class="page-description">
+            Tra cứu và cập nhật thông tin khách hàng.
+        </p>
+    </div>
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               Disabled="@(_loading || _dialogOpen)"
+               OnClick="@(() => OpenCustomerDialogAsync())"
+               Class="add-customer-button">
+        Thêm khách hàng
+    </MudButton>
+</div>
+
+<MudPaper Class="customer-filter mb-5" Elevation="0">
+    <MudGrid Spacing="2" Class="align-center">
+        <MudItem xs="12" md="7">
+            <MudTextField T="string"
+                          @bind-Value="_search"
+                          Label="Tìm khách hàng"
+                          Placeholder="Nhập họ tên hoặc số điện thoại"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Immediate="true"
+                          Clearable="true"
+                          Disabled="@(_loading || _dialogOpen)" />
+        </MudItem>
+
+        <MudItem xs="12" sm="8" md="3">
+            <MudSelect T="string"
+                       @bind-Value="_status"
+                       Label="Trạng thái"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Disabled="@(_loading || _dialogOpen)">
+                <MudSelectItem T="string" Value="@("all")">
+                    Tất cả trạng thái
+                </MudSelectItem>
+
+                <MudSelectItem T="string" Value="@("active")">
+                    Hoạt động
+                </MudSelectItem>
+
+                <MudSelectItem T="string" Value="@("inactive")">
+                    Ngừng hoạt động
+                </MudSelectItem>
+            </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" sm="4" md="2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Search"
+                       Disabled="@(_loading || _dialogOpen)"
+                       OnClick="LoadCustomersAsync"
+                       Class="filter-search-button">
+                Tìm kiếm
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        @_error
+    </MudAlert>
+}
+
+<MudTable T="CustomerResponse"
+          Items="_customers"
+          Loading="_loading"
+          LoadingProgressColor="Color.Primary"
+          Hover="true"
+          Striped="false"
+          Breakpoint="Breakpoint.Sm"
+          Elevation="0"
+          Class="customer-table">
+    <HeaderContent>
+        <MudTh>Mã KH</MudTh>
+        <MudTh>Họ và tên</MudTh>
+        <MudTh>Email</MudTh>
+        <MudTh>Số điện thoại</MudTh>
+        <MudTh>Ngày sinh</MudTh>
+        <MudTh>Trạng thái</MudTh>
+        <MudTh>Thao tác</MudTh>
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="Mã KH">
+            <span class="customer-code">@context.CustomerCode</span>
+        </MudTd>
+
+        <MudTd DataLabel="Họ và tên">
+            <span class="customer-name">@context.FullName</span>
+        </MudTd>
+        <MudTd DataLabel="Email">@(context.Email ?? "—")</MudTd>
+        <MudTd DataLabel="Số điện thoại">@context.PhoneNumber</MudTd>
+        <MudTd DataLabel="Ngày sinh">
+            @(context.DateOfBirth?.ToString("dd/MM/yyyy") ?? "—")
+        </MudTd>
+        <MudTd DataLabel="Trạng thái">
+            <MudChip T="string"
+                     Size="Size.Small"
+                     Variant="Variant.Text"
+                     Class="@(context.IsActive
+                                  ? "customer-status status-active"
+                                  : "customer-status status-inactive")">
+                @(context.IsActive ? "Hoạt động" : "Ngừng hoạt động")
+            </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Thao tác">
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Edit"
+                       Disabled="@(_loading || _dialogOpen)"
+                       OnClick="@(() => OpenCustomerDialogAsync(context))">
+                Sửa
+            </MudButton>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.Delete"
+                       Disabled="@(_loading || _dialogOpen)"
+                       OnClick="@(() => DeleteCustomerAsync(context))">
+                Xóa
+            </MudButton>
+        </MudTd>
+    </RowTemplate>
+
+    <NoRecordsContent>
+        <div class="customers-empty">
+            @if (_loading)
+            {
+                <p class="empty-title">Đang tải khách hàng...</p>
+            }
+            else if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <MudIcon Icon="@Icons.Material.Filled.ErrorOutline"
+                         Class="empty-icon" />
+
+                <p class="empty-title">Chưa tải được dữ liệu</p>
+
+                <p class="empty-description">
+                    Vui lòng thử tìm kiếm lại sau.
+                </p>
+            }
+            else if (_hasAppliedFilter)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Search"
+                         Class="empty-icon" />
+
+                <p class="empty-title">Không tìm thấy khách hàng</p>
+
+                <p class="empty-description">
+                    Thử từ khóa khác hoặc chọn tất cả trạng thái.
+                </p>
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.People"
+                         Class="empty-icon" />
+
+                <p class="empty-title">Chưa có khách hàng</p>
+
+                <p class="empty-description">
+                    Thêm khách hàng đầu tiên để bắt đầu quản lý.
+                </p>
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Disabled="@(_loading || _dialogOpen)"
+                           OnClick="@(() => OpenCustomerDialogAsync())"
+                           Class="mt-3">
+                    Thêm khách hàng
+                </MudButton>
+            }
+        </div>
+    </NoRecordsContent>
+
+    <PagerContent>
+        <MudTablePager RowsPerPageString="Số dòng mỗi trang"
+                       InfoFormat="{first_item}–{last_item} / {all_items}" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private List<CustomerResponse> _customers = new();
+    private string? _search;
+    private string _status = "all";
+    private bool _loading;
+    private string? _error;
+    private bool _hasAppliedFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomersAsync();
+    }
+
+    private async Task LoadCustomersAsync()
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            bool? isActive = _status switch
+            {
+                "active" => true,
+                "inactive" => false,
+                _ => null
+            };
+
+            _customers = await CustomerApi.GetAllAsync(
+                _search, isActive);
+            _hasAppliedFilter = !string.IsNullOrWhiteSpace(_search)
+                || isActive.HasValue;
+        }
+        catch (HttpRequestException exception)
+        {
+            Logger.LogError(exception, "Failed to load customers.");
+
+            _customers.Clear();
+            _error = exception.StatusCode.HasValue
+                ? exception.Message
+                : "Không kết nối được API. Vui lòng kiểm tra API đang chạy.";
+        }
+        catch (TaskCanceledException)
+        {
+            _customers.Clear();
+            _error = "Yêu cầu quá thời gian chờ. Vui lòng thử lại.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unexpected customer loading error.");
+
+            _customers.Clear();
+            _error = "Không tải được dữ liệu. Vui lòng thử lại.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+    private bool _dialogOpen;
+
+    private async Task OpenCustomerDialogAsync(
+        CustomerResponse? customer = null)
+    {
+        if (_loading || _dialogOpen)
+        {
+            return;
+        }
+
+        _dialogOpen = true;
+
+        try
+        {
+            var parameters = new DialogParameters<CustomerDialog>
+        {
+            { dialog => dialog.Customer, customer }
+        };
+
+            var options = new DialogOptions
+            {
+                FullWidth = true,
+                MaxWidth = MaxWidth.Medium,
+                BackdropClick = false,
+                CloseOnEscapeKey = false,
+                CloseButton = false
+            };
+
+            var title = customer is null
+                ? "Thêm khách hàng"
+                : "Sửa khách hàng";
+
+            var dialog = await DialogService.ShowAsync<CustomerDialog>(
+                title, parameters, options);
+
+            var result = await dialog.Result;
+
+            if (result is { Canceled: false })
+            {
+                Snackbar.Add(
+                    customer is null
+                        ? "Thêm khách hàng thành công."
+                        : "Cập nhật khách hàng thành công.",
+                    Severity.Success);
+
+                await LoadCustomersAsync();
+            }
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+    }
+    private async Task DeleteCustomerAsync(CustomerResponse customer)
+    {
+        if (_loading || _dialogOpen)
+        {
+            return;
+        }
+
+        _dialogOpen = true;
+
+        try
+        {
+            var parameters = new DialogParameters<DeleteCustomerDialog>
+            {
+                { dialog => dialog.Customer, customer }
+            };
+
+            var options = new DialogOptions
+            {
+                FullWidth = true,
+                MaxWidth = MaxWidth.Small,
+                BackdropClick = false,
+                CloseOnEscapeKey = true,
+                CloseButton = false
+            };
+
+            var dialog = await DialogService.ShowAsync<DeleteCustomerDialog>(
+                "Xóa khách hàng",
+                parameters,
+                options);
+
+            var result = await dialog.Result;
+
+            if (result is not { Canceled: false, Data: true })
+            {
+                return;
+            }
+
+            await CustomerApi.DeleteAsync(customer.Id);
+
+            Snackbar.Add(
+                "Xóa khách hàng thành công.",
+                Severity.Success);
+
+            await LoadCustomersAsync();
+        }
+        catch (HttpRequestException exception)
+        {
+            Logger.LogError(exception, "Failed to delete customer.");
+
+            var message = exception.StatusCode.HasValue
+                ? exception.Message
+                : "Không kết nối được API. Vui lòng thử lại.";
+
+            Snackbar.Add(message, Severity.Error);
+        }
+        catch (TaskCanceledException)
+        {
+            Snackbar.Add(
+                "Yêu cầu quá thời gian chờ. Hãy tải lại danh sách để kiểm tra.",
+                Severity.Warning);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unexpected customer deletion error.");
+
+            Snackbar.Add(
+                "Không xác nhận được kết quả xóa. Hãy tải lại danh sách.",
+                Severity.Error);
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+    }
+}

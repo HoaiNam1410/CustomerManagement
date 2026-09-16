@@ -1,0 +1,138 @@
+﻿@page "/login"
+@using CustomerManagement.Client.Services
+@using CustomerManagement.Contracts.Auth
+@inject AuthApiService AuthApi
+@inject CustomAuthStateProvider AuthState
+@inject NavigationManager Navigation
+@inject ILogger<Login> Logger
+
+<PageTitle>Đăng nhập | Quản lý khách hàng</PageTitle>
+
+<div class="login-page">
+    <section class="login-card" aria-labelledby="login-title">
+        <div class="login-heading">
+            <div class="login-icon">
+                <MudIcon Icon="@Icons.Material.Filled.Lock"
+                         Size="Size.Large" />
+            </div>
+
+            <h1 id="login-title" class="login-title">
+                Đăng nhập
+            </h1>
+
+            <p class="login-description">
+                Sử dụng tài khoản được cấp để quản lý thông tin khách hàng.
+            </p>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div role="alert">
+                <MudAlert Severity="Severity.Error" Class="mb-4">
+                    @_error
+                </MudAlert>
+            </div>
+        }
+
+        <EditForm Model="_model" OnValidSubmit="LoginAsync">
+            <DataAnnotationsValidator />
+
+            <MudTextField T="string"
+                          Label="Tên đăng nhập"
+                          @bind-Value="_model.Username"
+                          For="@(() => _model.Username)"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.PersonOutline"
+                          Immediate="true"
+                          Disabled="_submitting"
+                          autocomplete="username"
+                          Class="mb-4" />
+
+            <MudTextField T="string"
+                          Label="Mật khẩu"
+                          @bind-Value="_model.Password"
+                          For="@(() => _model.Password)"
+                          InputType="InputType.Password"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Lock"
+                          Immediate="true"
+                          Disabled="_submitting"
+                          autocomplete="current-password"
+                          Class="mb-5" />
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Disabled="_submitting"
+                       Class="login-submit">
+                @(_submitting ? "Đang đăng nhập..." : "Đăng nhập")
+            </MudButton>
+        </EditForm>
+
+        <div class="login-footer">
+            Hệ thống quản lý khách hàng
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly LoginRequest _model = new();
+    private bool _submitting;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/customers", replace: true);
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        if (_submitting)
+        {
+            return;
+        }
+
+        _submitting = true;
+        _error = null;
+
+        try
+        {
+            await AuthApi.LoginAsync(_model);
+
+            Navigation.NavigateTo("/customers", replace: true);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogWarning(ex, "Đăng nhập thất bại.");
+
+            _error = ex.StatusCode.HasValue
+                ? ex.Message
+                : "Không kết nối được máy chủ. Vui lòng thử lại.";
+        }
+        catch (OperationCanceledException)
+        {
+            _error = "Yêu cầu đăng nhập hết thời gian chờ. Vui lòng thử lại.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Lỗi khi đăng nhập.");
+
+            _error = "Không thể hoàn tất đăng nhập. Vui lòng thử lại.";
+        }
+        finally
+        {
+            _model.Password = string.Empty;
+            _submitting = false;
+        }
+    }
+}

@@ -1,0 +1,220 @@
+﻿@using CustomerManagement.Client.Services
+@inject CustomerApiService CustomerApi
+@inject ILogger<CustomerDialog> Logger
+
+<EditForm Model="_model" OnValidSubmit="SaveAsync">
+    <DataAnnotationsValidator />
+
+    <MudDialog Class="customer-editor">
+        <DialogContent>
+            <p class="dialog-description">
+                @(Customer is null
+                                ? "Nhập thông tin để tạo hồ sơ khách hàng mới."
+                                : "Kiểm tra và cập nhật thông tin khách hàng.")
+                Các trường có dấu * là bắt buộc.
+            </p>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">
+                    @_error
+                </MudAlert>
+            }
+
+            <MudGrid Spacing="3">
+                <MudItem xs="12" sm="5">
+                    <MudTextField T="string"
+                                  @bind-Value="_model.CustomerCode"
+                                  For="@(() => _model.CustomerCode)"
+                                  Label="Mã khách hàng *"
+                                  Placeholder="Ví dụ: KH001"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  Disabled="_saving" />
+                </MudItem>
+
+                <MudItem xs="12" sm="7">
+                    <MudTextField T="string"
+                                  @bind-Value="_model.FullName"
+                                  For="@(() => _model.FullName)"
+                                  Label="Họ và tên *"
+                                  Placeholder="Nhập họ và tên"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  Disabled="_saving" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string"
+                                  @bind-Value="_model.PhoneNumber"
+                                  For="@(() => _model.PhoneNumber)"
+                                  Label="Số điện thoại *"
+                                  Placeholder="Ví dụ: 0901234567"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  Disabled="_saving" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string"
+                                  @bind-Value="_model.Email"
+                                  For="@(() => _model.Email)"
+                                  Label="Email"
+                                  Placeholder="Ví dụ: ten@example.com"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Immediate="true"
+                                  Disabled="_saving" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="BirthDate"
+                                   Label="Ngày sinh"
+                                   DateFormat="dd/MM/yyyy"
+                                   MaxDate="DateTime.Today"
+                                   Clearable="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense"
+                                   Disabled="_saving" />
+
+                    <ValidationMessage For="@(() => _model.DateOfBirth)" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <div class="customer-status-setting">
+                        <div>
+                            <div class="status-setting-title">
+                                Trạng thái khách hàng
+                            </div>
+
+                            <div class="status-setting-description">
+                                Bỏ chọn nếu khách hàng ngừng hoạt động.
+                            </div>
+                        </div>
+
+                        <MudCheckBox T="bool"
+                                     @bind-Value="_model.IsActive"
+                                     Label="Đang hoạt động"
+                                     Color="Color.Primary"
+                                     Disabled="_saving" />
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </DialogContent>
+
+        <DialogActions>
+            <MudButton OnClick="Cancel"
+                       ButtonType="ButtonType.Button"
+                       Variant="Variant.Outlined"
+                       Disabled="_saving">
+                Hủy
+            </MudButton>
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       Disabled="_saving">
+                @(_saving
+                                ? "Đang lưu..."
+                                : Customer is null
+                                ? "Thêm khách hàng"
+                                : "Lưu thay đổi")
+            </MudButton>
+        </DialogActions>
+    </MudDialog>
+</EditForm>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public CustomerResponse? Customer { get; set; }
+
+    private CustomerRequest _model = new();
+    private bool _saving;
+    private string? _error;
+
+    private DateTime? BirthDate
+    {
+        get => _model.DateOfBirth?.ToDateTime(TimeOnly.MinValue);
+        set => _model.DateOfBirth = value.HasValue
+            ? DateOnly.FromDateTime(value.Value)
+            : null;
+    }
+
+    protected override void OnInitialized()
+    {
+        if (Customer is not null)
+        {
+            _model = new CustomerRequest
+            {
+                CustomerCode = Customer.CustomerCode,
+                FullName = Customer.FullName,
+                Email = Customer.Email,
+                PhoneNumber = Customer.PhoneNumber,
+                DateOfBirth = Customer.DateOfBirth,
+                IsActive = Customer.IsActive
+            };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            CustomerResponse result;
+
+            if (Customer is null)
+            {
+                result = await CustomerApi.CreateAsync(_model);
+            }
+            else
+            {
+                result = await CustomerApi.UpdateAsync(
+                    Customer.Id, _model);
+            }
+
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        catch (HttpRequestException exception)
+        {
+            Logger.LogError(exception, "Failed to save customer.");
+
+            _error = exception.StatusCode.HasValue
+                ? exception.Message
+                : "Không kết nối được API. Vui lòng thử lại.";
+        }
+        catch (TaskCanceledException)
+        {
+            _error = "Yêu cầu quá thời gian chờ. Hãy kiểm tra danh sách trước khi lưu lại.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unexpected customer saving error.");
+
+            _error = "Không xác nhận được kết quả lưu. Hãy kiểm tra lại danh sách.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

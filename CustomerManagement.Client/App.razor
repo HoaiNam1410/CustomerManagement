@@ -1,0 +1,42 @@
+﻿@using CustomerManagement.Client.Components
+@using CustomerManagement.Client.Layout
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData"
+                                DefaultLayout="@typeof(MainLayout)">
+                <Authorizing>
+                    <MudText>Đang kiểm tra đăng nhập...</MudText>
+                </Authorizing>
+
+                <NotAuthorized Context="authState">
+                    @if (authState.User.Identity?.IsAuthenticated == true)
+                    {
+                        <MudAlert Severity="Severity.Error">
+                            Bạn không có quyền truy cập trang này.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <MudText Typo="Typo.h5">
+                    Không tìm thấy trang.
+                </MudText>
+
+                <MudLink Href="/customers">
+                    Về trang khách hàng
+                </MudLink>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

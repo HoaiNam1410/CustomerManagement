@@ -1,0 +1,13 @@
+﻿@inject NavigationManager Navigation
+
+<MudText>Đang chuyển đến trang đăng nhập...</MudText>
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
+}

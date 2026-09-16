@@ -1,0 +1,56 @@
+﻿<MudDialog Class="delete-customer-dialog">
+    <DialogContent>
+        <div class="delete-warning-icon">
+            <MudIcon Icon="@Icons.Material.Filled.DeleteOutline"
+                     Size="Size.Large" />
+        </div>
+
+        <p class="delete-description">
+            Bạn có chắc muốn xóa khách hàng này?
+        </p>
+
+        <div class="delete-customer-summary">
+            <span class="customer-code">@Customer.CustomerCode</span>
+            <span class="customer-name">@Customer.FullName</span>
+        </div>
+
+        <p class="delete-warning-text">
+            Thông tin khách hàng sẽ bị xóa khỏi hệ thống.
+            Thao tác này không thể hoàn tác trên ứng dụng.
+        </p>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined"
+                   ButtonType="ButtonType.Button"
+                   OnClick="Cancel">
+            Hủy
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Error"
+                   ButtonType="ButtonType.Button"
+                   StartIcon="@Icons.Material.Filled.DeleteOutline"
+                   OnClick="Confirm">
+            Xóa khách hàng
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public CustomerResponse Customer { get; set; } = default!;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

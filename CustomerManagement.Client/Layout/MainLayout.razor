@@ -1,0 +1,79 @@
+﻿@inherits LayoutComponentBase
+@using CustomerManagement.Client.Services
+@inject AuthApiService AuthApi
+@inject NavigationManager Navigation
+
+<MudThemeProvider Theme="_theme" IsDarkMode="false" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Class="app-header">
+        <div class="app-brand">
+            <span class="app-brand-icon">
+                <MudIcon Icon="@Icons.Material.Filled.People" />
+            </span>
+
+            <div>
+                <div class="app-brand-name">Quản lý khách hàng</div>
+            </div>
+        </div>
+
+        <MudSpacer />
+
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <div class="app-account">
+                    <span class="app-account-name">
+                        @auth.User.Identity?.Name
+                    </span>
+
+                    <MudButton Color="Color.Inherit"
+                               Variant="Variant.Text"
+                               StartIcon="@Icons.Material.Filled.Logout"
+                               OnClick="LogoutAsync">
+                        Đăng xuất
+                    </MudButton>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudMainContent Class="app-main">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge"
+                      Class="app-container">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#2563EB",
+            Secondary = "#475569",
+            Background = "#F4F6FA",
+            Surface = "#FFFFFF",
+            AppbarBackground = "#14243B",
+            AppbarText = "#FFFFFF",
+            TextPrimary = "#172B4D",
+            TextSecondary = "#64748B",
+            Success = "#15803D",
+            Error = "#DC2626",
+            Divider = "#E2E8F0"
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "10px"
+        }
+    };
+
+    private async Task LogoutAsync()
+    {
+        await AuthApi.LogoutAsync();
+        Navigation.NavigateTo("/login", replace: true);
+    }
+}
